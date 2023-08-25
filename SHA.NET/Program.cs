@@ -2,7 +2,7 @@
 using System.Text;
 using SHA.Algorithms;
 
-var sha = new Sha1();
+var sha = new Sha256();
 var bytes = File.ReadAllBytes("przykladowy_ndl.txt");
 var s1 = new System.Diagnostics.Stopwatch();
 s1.Start();

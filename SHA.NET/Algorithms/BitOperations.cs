@@ -9,4 +9,22 @@ public static class BitOperations
     {
         return (number << bits) | (number >> (32 - bits));
     }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ulong RotateLeft(ulong number, int bits)
+    {
+        return (number << bits) | (number >> (64 - bits));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static uint RotateRight(uint number, int bits)
+    {
+        return (number >> bits) | (number << (32 - bits));
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ulong RotateRight(ulong number, int bits)
+    {
+        return (number >> bits) | (number << (64 - bits));
+    }
 }

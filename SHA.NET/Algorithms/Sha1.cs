@@ -6,22 +6,18 @@ using System.Runtime.InteropServices;
 
 public class Sha1
 {
-    struct SHAState
+    struct SHA1State
     {
-        public uint HA;
-        public uint HB;
-        public uint HC;
-        public uint HD;
-        public uint HE;
+        public unsafe fixed uint H[5];
 
-        internal void Init()
+        public unsafe SHA1State()
         {
-            this.HA = 0x67452301u;
-            this.HB = 0xefcdab89u;
-            this.HC = 0x98badcfeu;
-            this.HD = 0x10325476u;
-            this.HE = 0xc3d2e1f0u;
-        }
+            this.H[0] = 0x67452301u;
+            this.H[1] = 0xefcdab89u;
+            this.H[2] = 0x98badcfeu;
+            this.H[3] = 0x10325476u;
+            this.H[4] = 0xc3d2e1f0u;
+        }       
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -78,13 +74,13 @@ public class Sha1
     }
 
 
-    private unsafe void ComputeInternal(SHAState* state, byte* data)
+    private unsafe void ComputeInternal(SHA1State* state, byte* data)
     {
-        uint A = state->HA;
-        uint B = state->HB;
-        uint C = state->HC;
-        uint D = state->HD;
-        uint E = state->HE;
+        uint A = state->H[0];
+        uint B = state->H[1];
+        uint C = state->H[2];
+        uint D = state->H[3];
+        uint E = state->H[4];
 
         uint[] buffer = ArrayPool<uint>.Shared.Rent(80);
         byte* offsetPtr = data;
@@ -158,17 +154,16 @@ public class Sha1
 
         ArrayPool<uint>.Shared.Return(buffer, false);
 
-        state->HA += A;
-        state->HB += B;
-        state->HC += C;
-        state->HD += D;
-        state->HE += E;
+        state->H[0] += A;
+        state->H[1] += B;
+        state->H[2] += C;
+        state->H[3] += D;
+        state->H[4] += E;
     }
 
     private unsafe uint[] ComputeHashUnsafe(byte* data, long length)
     {
-        SHAState state = new();
-        state.Init();
+        SHA1State state = new();
 
         for (int i = 0; i < (length >> 6); i++)
         {
@@ -207,6 +202,6 @@ public class Sha1
             ComputeInternal(&state, ptr + 64);
         }
 
-        return new[] { state.HA, state.HB, state.HC, state.HD, state.HE};
+        return new[] { state.H[0], state.H[1], state.H[2], state.H[3], state.H[4]};
     }
 }
