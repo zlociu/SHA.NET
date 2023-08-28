@@ -4,13 +4,13 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public class Sha512
+public class Sha512 : IHashAlgorithm
 {
-    struct SHA512State
+    protected struct SHA512State
     {
         public unsafe fixed ulong H[8];
 
-        public unsafe SHA512State()
+        public unsafe void Init512()
         {
             this.H[0] = 0x6a09e667f3bcc908UL;
             this.H[1] = 0xbb67ae8584caa73bUL;
@@ -21,22 +21,47 @@ public class Sha512
             this.H[6] = 0x1f83d9abfb41bd6bUL;
             this.H[7] = 0x5be0cd19137e2179UL;
         }
+
+        public unsafe void Init384()
+        {
+            this.H[0] = 0xcbbb9d5dc1059ed8UL;
+            this.H[1] = 0x629a292a367cd507UL;
+            this.H[2] = 0x9159015a3070dd17UL;
+            this.H[3] = 0x152fecd8f70e5939UL;
+            this.H[4] = 0x67332667ffc00b31UL;
+            this.H[5] = 0x8eb44a8768581511UL;
+            this.H[6] = 0xdb0c2e0d64f98fa7UL;
+            this.H[7] = 0x47b5481dbefa4fa4UL;
+        }
+    }
+
+    protected SHA512State state;
+
+    public Sha512()
+    {
+        state = new();
+        state.Init512();
+    }
+
+    public virtual void ResetState()
+    {
+        state.Init512();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ulong Ch(ulong e, ulong f, ulong g)
+    protected ulong Ch(ulong e, ulong f, ulong g)
     {
         return (e & f) ^ ((~e) & g);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ulong Maj(ulong a, ulong b, ulong c)
+    protected ulong Maj(ulong a, ulong b, ulong c)
     {
         return (a & b) ^ (a & c) ^ (b & c);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ulong SmallSigma0(ulong a)
+    protected ulong SmallSigma0(ulong a)
     {
         return
             BitOperations.RotateRight(a, 1) ^ 
@@ -45,7 +70,7 @@ public class Sha512
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ulong SmallSigma1(ulong e)
+    protected ulong SmallSigma1(ulong e)
     {
         return
             BitOperations.RotateRight(e, 19) ^ 
@@ -54,7 +79,7 @@ public class Sha512
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ulong BigSigma0(ulong a)
+    protected ulong BigSigma0(ulong a)
     {
         return
             BitOperations.RotateRight(a, 28) ^ 
@@ -63,7 +88,7 @@ public class Sha512
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private ulong BigSigma1(ulong e)
+    protected ulong BigSigma1(ulong e)
     {
         return
             BitOperations.RotateRight(e, 14) ^ 
@@ -71,7 +96,7 @@ public class Sha512
             BitOperations.RotateRight(e, 41);
     }
 
-    private readonly static ulong[] kTable =
+    protected readonly static ulong[] kTable =
     {
         0x428A2F98D728AE22U, 0x7137449123EF65CDU, 0xB5C0FBCFEC4D3B2FU, 0xE9B5DBA58189DBBCU,
         0x3956C25BF348B538U, 0x59F111F1B605D019U, 0x923F82A4AF194F9BU, 0xAB1C5ED5DA6D8118U,
@@ -95,43 +120,49 @@ public class Sha512
         0x4CC5D4BECB3E42B6U, 0x597F299CFC657E2AU, 0x5FCB6FAB3AD6FAECU, 0x6C44198C4A475817U
     };
 
-    private ulong[] result = Array.Empty<ulong>();
+    
 
     public unsafe void ComputeHash(ReadOnlySpan<byte> data)
     {
-        if (data.Length == 0)
+        fixed (SHA512State* statePtr = &this.state)
         {
-            this.result = this.ComputeHashUnsafe(null, 0);
-            return;
-        }
+            if (data.Length == 0)
+            {
+                this.ComputeHashUnsafe(null, 0, statePtr);
+                return;
+            }
 
-        fixed (byte* ptr = &MemoryMarshal.GetReference(data))
-        {
-            this.result = this.ComputeHashUnsafe(ptr, data.Length);
+            fixed (byte* ptr = &MemoryMarshal.GetReference(data))
+            {
+                this.ComputeHashUnsafe(ptr, data.Length, statePtr);
+            }
         }
     }
 
     public unsafe void ComputeHash(byte[] data)
     {
-        if (data is null || data.Length == 0)
+        fixed (SHA512State* statePtr = &this.state)
         {
-            this.result = this.ComputeHashUnsafe(null, 0);
-            return;
-        }
+            if (data is null || data.Length == 0)
+            {
+                this.ComputeHashUnsafe(null, 0, statePtr);
+                return;
+            }
 
-        fixed (byte* ptr = &data[0])
-        {
-            this.result = this.ComputeHashUnsafe(ptr, data.Length);
+            fixed (byte* ptr = &data[0])
+            {
+                this.ComputeHashUnsafe(ptr, data.Length, statePtr);
+            }
         }
     }
 
-    public string GetHash()
+    public unsafe virtual string GetHash()
     {
-        return string.Format("0x{0:x16}{1:x16}{2:x16}{3:x16}{4:x16}{5:x16}{6:x16}{7:x16}", result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7]);
+        return string.Format("0x{0:x16}{1:x16}{2:x16}{3:x16}{4:x16}{5:x16}{6:x16}{7:x16}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4], state.H[5], state.H[6], state.H[7]);
     }
 
 
-    private unsafe void ComputeInternal(SHA512State* state, byte* data)
+    protected unsafe void ComputeInternal(SHA512State* state, byte* data)
     {
         ulong A = state->H[0];
         ulong B = state->H[1];
@@ -167,11 +198,6 @@ public class Sha512
             k++;
         }
 
-        foreach (var b in buffer)
-        {
-            Console.Write("{0} ", b);
-        }
-
         ulong tmp1, tmp2 = 0;
         short round = 0;
         while (round < 80)
@@ -202,13 +228,11 @@ public class Sha512
         state->H[7] += H;
     }
 
-    private unsafe ulong[] ComputeHashUnsafe(byte* data, long length)
+    protected unsafe void ComputeHashUnsafe(byte* data, long length, SHA512State* state)
     {
-        SHA512State state = new();
-
         for (int i = 0; i < (length >> 7); i++)
         {
-            this.ComputeInternal(&state, data + (i << 7));
+            this.ComputeInternal(state, data + (i << 7));
         }
 
         int data_len_mod_0x7F = (int)((length + 1L) & 0x7FL);
@@ -247,20 +271,11 @@ public class Sha512
         padding[241] = wholeSizePtr[6];
         padding[240] = wholeSizePtr[7];
 
-        foreach (byte b in padding.AsSpan().Slice(128))
-        {
-            Console.Write("{0} ", b);
-        }
-
-        Console.WriteLine(data_len_mod_0x7F);
-
         fixed (byte* ptr = &padding[0])
         {
-            if (data_len_mod_0x7F > 112) this.ComputeInternal(&state, ptr);
+            if (data_len_mod_0x7F > 112) this.ComputeInternal(state, ptr);
 
-            this.ComputeInternal(&state, ptr + 128);
+            this.ComputeInternal(state, ptr + 128);
         }
-
-        return new[] { state.H[0], state.H[1], state.H[2], state.H[3], state.H[4], state.H[5], state.H[6], state.H[7] };
     }
 }

@@ -4,13 +4,13 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public class Sha256
+public class Sha256 : IHashAlgorithm
 {
-    struct SHA256State
+    protected struct SHA256State
     {
         public unsafe fixed uint H[8];
 
-        public unsafe SHA256State()
+        public unsafe void Init256()
         {
             this.H[0] = 0x6a09e667u;
             this.H[1] = 0xbb67ae85u;
@@ -21,22 +21,46 @@ public class Sha256
             this.H[6] = 0x1f83d9abu;
             this.H[7] = 0x5be0cd19u;
         }
+
+        public unsafe void Init224()
+        {
+            this.H[0] = 0xc1059ed8u;
+            this.H[1] = 0x367cd507u;
+            this.H[2] = 0x3070dd17u;
+            this.H[3] = 0xf70e5939u;
+            this.H[4] = 0xffc00b31u;
+            this.H[5] = 0x68581511u;
+            this.H[6] = 0x64f98fa7u;
+            this.H[7] = 0xbefa4fa4u;
+        }
+    }
+    protected SHA256State state;
+
+    public Sha256()
+    {
+        state = new();
+        state.Init256();
+    }
+
+    public virtual void ResetState()
+    {
+        state.Init256();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint Ch(uint e, uint f, uint g)
+    protected uint Ch(uint e, uint f, uint g)
     {
         return (e & f) ^ ((~e) & g);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint Maj(uint a, uint b, uint c)
+    protected uint Maj(uint a, uint b, uint c)
     {
         return (a & b) ^ (a & c) ^ (b & c);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint SmallSigma0(uint a)
+    protected uint SmallSigma0(uint a)
     {
         return
             BitOperations.RotateRight(a, 7) ^ 
@@ -45,7 +69,7 @@ public class Sha256
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint SmallSigma1(uint e)
+    protected uint SmallSigma1(uint e)
     {
         return
             BitOperations.RotateRight(e, 17) ^ 
@@ -54,7 +78,7 @@ public class Sha256
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint BigSigma0(uint a)
+    protected uint BigSigma0(uint a)
     {
         return
             BitOperations.RotateRight(a, 2) ^ 
@@ -63,7 +87,7 @@ public class Sha256
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private uint BigSigma1(uint e)
+    protected uint BigSigma1(uint e)
     {
         return
             BitOperations.RotateRight(e, 6) ^ 
@@ -71,7 +95,7 @@ public class Sha256
             BitOperations.RotateRight(e, 25);
     }
 
-    private readonly static uint[] kTable =
+    protected readonly static uint[] kTable =
     {
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
         0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -83,43 +107,46 @@ public class Sha256
         0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
     };
 
-    private uint[] result = Array.Empty<uint>();
-
     public unsafe void ComputeHash(ReadOnlySpan<byte> data)
     {
-        if (data.Length == 0)
+        fixed (SHA256State* statePtr = &this.state)
         {
-            this.result = this.ComputeHashUnsafe(null, 0);
-            return;
-        }
+            if (data.Length == 0)
+            {
+                this.ComputeHashUnsafe(null, 0, statePtr);
+                return;
+            }
 
-        fixed (byte* ptr = &MemoryMarshal.GetReference(data))
-        {
-            this.result = this.ComputeHashUnsafe(ptr, data.Length);
+            fixed (byte* ptr = &MemoryMarshal.GetReference(data))
+            {
+                this.ComputeHashUnsafe(ptr, data.Length, statePtr);
+            }
         }
     }
 
     public unsafe void ComputeHash(byte[] data)
     {
-        if (data is null || data.Length == 0)
+        fixed (SHA256State* statePtr = &this.state)
         {
-            this.result = this.ComputeHashUnsafe(null, 0);
-            return;
-        }
+            if (data is null || data.Length == 0)
+            {
+                this.ComputeHashUnsafe(null, 0, statePtr);
+                return;
+            }
 
-        fixed (byte* ptr = &data[0])
-        {
-            this.result = this.ComputeHashUnsafe(ptr, data.Length);
+            fixed (byte* ptr = &data[0])
+            {
+                this.ComputeHashUnsafe(ptr, data.Length, statePtr);
+            }
         }
     }
 
-    public string GetHash()
+    public unsafe virtual string GetHash()
     {
-        return string.Format("0x{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}{5:x8}{6:x8}{7:x8}", result[0], result[1], result[2], result[3], result[4], result[5], result[6], result[7]);
+        return string.Format("0x{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}{5:x8}{6:x8}{7:x8}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4], state.H[5], state.H[6], state.H[7]);
     }
 
-
-    private unsafe void ComputeInternal(SHA256State* state, byte* data)
+    protected unsafe void ComputeInternal(SHA256State* state, byte* data)
     {
         uint A = state->H[0];
         uint B = state->H[1];
@@ -180,13 +207,11 @@ public class Sha256
         state->H[7] += H;
     }
 
-    private unsafe uint[] ComputeHashUnsafe(byte* data, long length)
+    protected unsafe void ComputeHashUnsafe(byte* data, long length, SHA256State* state)
     {
-        SHA256State state = new();
-
         for (int i = 0; i < (length >> 6); i++)
         {
-            ComputeInternal(&state, data + (i << 6));
+            ComputeInternal(state, data + (i << 6));
         }
 
         int data_len_mod_0x3F = (int)((length + 1L) & 0x3FL);
@@ -216,11 +241,9 @@ public class Sha256
 
         fixed (byte* ptr = &padding[0])
         {
-            if (data_len_mod_0x3F > 56) ComputeInternal(&state, ptr);
+            if (data_len_mod_0x3F > 56) ComputeInternal(state, ptr);
 
-            ComputeInternal(&state, ptr + 64);
+            ComputeInternal(state, ptr + 64);
         }
-
-        return new[] { state.H[0], state.H[1], state.H[2], state.H[3], state.H[4], state.H[5], state.H[6], state.H[7] };
     }
 }

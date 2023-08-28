@@ -4,7 +4,7 @@ using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-public class Sha1
+public class Sha1: IHashAlgorithm
 {
     struct SHA1State
     {
@@ -18,6 +18,18 @@ public class Sha1
             this.H[3] = 0x10325476u;
             this.H[4] = 0xc3d2e1f0u;
         }       
+    }
+
+    private SHA1State state;
+
+    public Sha1()
+    {
+        this.state = new();
+    }
+
+    public void ResetState()
+    {
+        this.state = new();
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -38,39 +50,44 @@ public class Sha1
         return x ^ y ^ z;
     }
 
-    private uint[] result = Array.Empty<uint>();
-
     public unsafe void ComputeHash(ReadOnlySpan<byte> data)
     {
-        if (data.Length == 0)
+        fixed (SHA1State* statePtr = &this.state)
         {
-            this.result = this.ComputeHashUnsafe(null, 0);
-            return;
-        }
+            if (data.Length == 0)
+            {
+                this.ComputeHashUnsafe(null, 0, statePtr);
+                return;
+            }
 
-        fixed (byte* ptr = &MemoryMarshal.GetReference(data))
-        {
-            this.result = this.ComputeHashUnsafe(ptr, data.Length);
+            fixed (byte* ptr = &MemoryMarshal.GetReference(data))
+            {
+                this.ComputeHashUnsafe(ptr, data.Length, statePtr);
+            }
         }
+        
     }
 
     public unsafe void ComputeHash(byte[] data)
     {
-        if (data is null || data.Length == 0)
+        fixed (SHA1State* statePtr = &this.state)
         {
-            this.result = this.ComputeHashUnsafe(null, 0);
-            return;
-        }
+            if (data is null || data.Length == 0)
+            {
+                this.ComputeHashUnsafe(null, 0, statePtr);
+                return;
+            }
 
-        fixed (byte* ptr = &data[0])
-        {
-            this.result = this.ComputeHashUnsafe(ptr, data.Length);
+            fixed (byte* ptr = &data[0])
+            {
+                this.ComputeHashUnsafe(ptr, data.Length, statePtr);
+            }
         }
     }
 
-    public string GetHash()
+    public unsafe string GetHash()
     {
-        return string.Format("0x{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}", result[0], result[1], result[2], result[3], result[4]);
+        return string.Format("0x{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4]);
     }
 
 
@@ -161,13 +178,11 @@ public class Sha1
         state->H[4] += E;
     }
 
-    private unsafe uint[] ComputeHashUnsafe(byte* data, long length)
+    private unsafe void ComputeHashUnsafe(byte* data, long length, SHA1State* state)
     {
-        SHA1State state = new();
-
         for (int i = 0; i < (length >> 6); i++)
         {
-            ComputeInternal(&state, data + (i << 6));
+            ComputeInternal(state, data + (i << 6));
         }
 
         int data_len_mod_0x3F = (int)((length + 1L) & 0x3FL);
@@ -197,11 +212,9 @@ public class Sha1
 
         fixed (byte* ptr = &padding[0])
         {
-            if (data_len_mod_0x3F > 56) ComputeInternal(&state, ptr);
+            if (data_len_mod_0x3F > 56) ComputeInternal(state, ptr);
 
-            ComputeInternal(&state, ptr + 64);
+            ComputeInternal(state, ptr + 64);
         }
-
-        return new[] { state.H[0], state.H[1], state.H[2], state.H[3], state.H[4]};
     }
 }
