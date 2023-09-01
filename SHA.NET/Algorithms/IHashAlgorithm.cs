@@ -4,7 +4,9 @@ public interface IHashAlgorithm
 
     void ComputeHash(byte[] data);
 
-    string GetHash();
+    string Hash { get; }
 
-    void ResetState();
+    int HashSizeBits { get; }
+
+    int HashSizeBytes { get; }
 }

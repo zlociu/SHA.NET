@@ -27,11 +27,6 @@ public class Sha1: IHashAlgorithm
         this.state = new();
     }
 
-    public void ResetState()
-    {
-        this.state = new();
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private uint F(uint x, uint y, uint z)
     {
@@ -52,6 +47,8 @@ public class Sha1: IHashAlgorithm
 
     public unsafe void ComputeHash(ReadOnlySpan<byte> data)
     {
+        this.state = new();
+
         fixed (SHA1State* statePtr = &this.state)
         {
             if (data.Length == 0)
@@ -70,6 +67,8 @@ public class Sha1: IHashAlgorithm
 
     public unsafe void ComputeHash(byte[] data)
     {
+        this.state = new();
+
         fixed (SHA1State* statePtr = &this.state)
         {
             if (data is null || data.Length == 0)
@@ -85,11 +84,10 @@ public class Sha1: IHashAlgorithm
         }
     }
 
-    public unsafe string GetHash()
-    {
-        return string.Format("0x{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4]);
-    }
+    public unsafe string Hash => string.Format("0x{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4]);
 
+    public int HashSizeBits => 160;
+    public int HashSizeBytes => 20;
 
     private unsafe void ComputeInternal(SHA1State* state, byte* data)
     {

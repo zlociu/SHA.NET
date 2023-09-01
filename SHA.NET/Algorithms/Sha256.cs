@@ -42,10 +42,10 @@ public class Sha256 : IHashAlgorithm
         state.Init256();
     }
 
-    public virtual void ResetState()
+    protected virtual void InitState()
     {
         state.Init256();
-    }
+    }   
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected uint Ch(uint e, uint f, uint g)
@@ -109,6 +109,8 @@ public class Sha256 : IHashAlgorithm
 
     public unsafe void ComputeHash(ReadOnlySpan<byte> data)
     {
+        this.InitState();
+
         fixed (SHA256State* statePtr = &this.state)
         {
             if (data.Length == 0)
@@ -126,6 +128,8 @@ public class Sha256 : IHashAlgorithm
 
     public unsafe void ComputeHash(byte[] data)
     {
+        this.InitState();
+
         fixed (SHA256State* statePtr = &this.state)
         {
             if (data is null || data.Length == 0)
@@ -141,10 +145,10 @@ public class Sha256 : IHashAlgorithm
         }
     }
 
-    public unsafe virtual string GetHash()
-    {
-        return string.Format("0x{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}{5:x8}{6:x8}{7:x8}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4], state.H[5], state.H[6], state.H[7]);
-    }
+    public unsafe virtual string Hash => string.Format("0x{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}{5:x8}{6:x8}{7:x8}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4], state.H[5], state.H[6], state.H[7]);
+    
+    public virtual int HashSizeBits => 256;
+    public virtual int HashSizeBytes => 32;
 
     protected unsafe void ComputeInternal(SHA256State* state, byte* data)
     {
