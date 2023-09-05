@@ -3,6 +3,7 @@ namespace SHA.Algorithms;
 using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 public class Sha512 : IHashAlgorithm
 {
@@ -160,6 +161,22 @@ public class Sha512 : IHashAlgorithm
         }
     }
 
+    public unsafe void ComputeHash(Stream data)
+    {
+        this.InitState();
+
+        fixed (SHA512State* statePtr = &this.state)
+        {
+            if (data is null || data.Length == 0)
+            {
+                this.ComputeHashUnsafe(null, 0, statePtr);
+                return;
+            }
+
+            this.ComputeHashStreamUnsafe(data, statePtr);
+        }
+    }
+
     public unsafe virtual string Hash => string.Format("0x{0:x16}{1:x16}{2:x16}{3:x16}{4:x16}{5:x16}{6:x16}{7:x16}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4], state.H[5], state.H[6], state.H[7]);
     
     public virtual int HashSizeBits => 512;
@@ -247,6 +264,66 @@ public class Sha512 : IHashAlgorithm
         for (int i = 0; i < data_len_mod_0x7F - 1; i++)
         {
             padding[i + k] = data[length - data_len_mod_0x7F + 1 + i];
+        }
+
+        padding[k + data_len_mod_0x7F - 1] = 0x80;
+
+        ulong wholeSizeSmall = (ulong)(length << 3);
+        ulong wholeSize  = (ulong)((length >> 61) & 0x07);
+        byte* wholeSizePtrSmall = (byte*)&wholeSizeSmall;
+        byte* wholeSizePtr = (byte*)&wholeSize;
+
+        padding[255] = wholeSizePtrSmall[0];
+        padding[254] = wholeSizePtrSmall[1];
+        padding[253] = wholeSizePtrSmall[2];
+        padding[252] = wholeSizePtrSmall[3];
+        padding[251] = wholeSizePtrSmall[4];
+        padding[250] = wholeSizePtrSmall[5];
+        padding[249] = wholeSizePtrSmall[6];
+        padding[248] = wholeSizePtrSmall[7];
+
+        padding[247] = wholeSizePtr[0];
+        padding[246] = wholeSizePtr[1];
+        padding[245] = wholeSizePtr[2];
+        padding[244] = wholeSizePtr[3];
+        padding[243] = wholeSizePtr[4];
+        padding[242] = wholeSizePtr[5];
+        padding[241] = wholeSizePtr[6];
+        padding[240] = wholeSizePtr[7];
+
+        fixed (byte* ptr = &padding[0])
+        {
+            if (data_len_mod_0x7F > 112) this.ComputeInternal(state, ptr);
+
+            this.ComputeInternal(state, ptr + 128);
+        }
+    }
+
+    private unsafe void ComputeHashStreamUnsafe(Stream stream, SHA512State* state)
+    {
+        var length = stream.Length;
+
+        Span<byte> dataBuffer = stackalloc byte[128];
+        
+        int cnt = 0;
+
+        fixed (byte* ptr = &MemoryMarshal.GetReference(dataBuffer))
+        {
+            while ((cnt = stream.Read(dataBuffer)) == 0x80)
+            {
+                ComputeInternal(state, ptr);
+            }
+        }
+
+        int data_len_mod_0x7F = (int)((length + 1L) & 0x7FL);
+        byte[] padding = new byte[256];
+
+        int k = 128;
+        if (data_len_mod_0x7F > 112) k = 0;
+
+        for (int i = 0; i < data_len_mod_0x7F - 1; i++)
+        {
+            padding[i + k] = dataBuffer[cnt - data_len_mod_0x7F + 1 + i];
         }
 
         padding[k + data_len_mod_0x7F - 1] = 0x80;

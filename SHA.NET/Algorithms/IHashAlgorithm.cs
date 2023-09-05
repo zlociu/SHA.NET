@@ -4,6 +4,8 @@ public interface IHashAlgorithm
 
     void ComputeHash(byte[] data);
 
+    void ComputeHash(Stream stream);
+
     string Hash { get; }
 
     int HashSizeBits { get; }

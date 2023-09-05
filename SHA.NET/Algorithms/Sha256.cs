@@ -145,6 +145,22 @@ public class Sha256 : IHashAlgorithm
         }
     }
 
+    public unsafe void ComputeHash(Stream data)
+    {
+        this.InitState();
+
+        fixed (SHA256State* statePtr = &this.state)
+        {
+            if (data is null || data.Length == 0)
+            {
+                this.ComputeHashUnsafe(null, 0, statePtr);
+                return;
+            }
+
+            this.ComputeHashStreamUnsafe(data, statePtr);
+        }
+    }
+
     public unsafe virtual string Hash => string.Format("0x{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}{5:x8}{6:x8}{7:x8}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4], state.H[5], state.H[6], state.H[7]);
     
     public virtual int HashSizeBits => 256;
@@ -227,6 +243,55 @@ public class Sha256 : IHashAlgorithm
         for (int i = 0; i < data_len_mod_0x3F - 1; i++)
         {
             padding[i + k] = data[length - data_len_mod_0x3F + 1 + i];
+        }
+
+        padding[k + data_len_mod_0x3F - 1] = 0x80;
+
+        long wholeSize = (length) << 3;
+        byte* wholeSizePtr = (byte*)&wholeSize;
+
+        padding[127] = wholeSizePtr[0];
+        padding[126] = wholeSizePtr[1];
+        padding[125] = wholeSizePtr[2];
+        padding[124] = wholeSizePtr[3];
+        padding[123] = wholeSizePtr[4];
+        padding[122] = wholeSizePtr[5];
+        padding[121] = wholeSizePtr[6];
+        padding[120] = wholeSizePtr[7];
+
+        fixed (byte* ptr = &padding[0])
+        {
+            if (data_len_mod_0x3F > 56) ComputeInternal(state, ptr);
+
+            ComputeInternal(state, ptr + 64);
+        }
+    }
+
+    private unsafe void ComputeHashStreamUnsafe(Stream stream, SHA256State* state)
+    {
+        var length = stream.Length;
+
+        Span<byte> dataBuffer = stackalloc byte[64];
+        
+        int cnt = 0;
+
+        fixed (byte* ptr = &MemoryMarshal.GetReference(dataBuffer))
+        {
+            while ((cnt = stream.Read(dataBuffer)) == 0x40)
+            {
+                ComputeInternal(state, ptr);
+            }
+        }
+
+        int data_len_mod_0x3F = (int)((length + 1L) & 0x3FL);
+        byte[] padding = new byte[128];
+
+        int k = 64;
+        if (data_len_mod_0x3F > 56) k = 0;
+
+        for (int i = 0; i < data_len_mod_0x3F - 1; i++)
+        {
+            padding[i + k] = dataBuffer[cnt - data_len_mod_0x3F + 1 + i];
         }
 
         padding[k + data_len_mod_0x3F - 1] = 0x80;
