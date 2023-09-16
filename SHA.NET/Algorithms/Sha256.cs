@@ -165,6 +165,7 @@ public class Sha256 : IHashAlgorithm
     
     public virtual int HashSizeBits => 256;
     public virtual int HashSizeBytes => 32;
+    public virtual string Name => "SHA-256";
 
     protected unsafe void ComputeInternal(SHA256State* state, byte* data)
     {

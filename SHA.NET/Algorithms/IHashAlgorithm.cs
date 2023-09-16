@@ -11,4 +11,6 @@ public interface IHashAlgorithm
     int HashSizeBits { get; }
 
     int HashSizeBytes { get; }
+
+    string Name { get; }
 }

@@ -181,6 +181,7 @@ public class Sha512 : IHashAlgorithm
     
     public virtual int HashSizeBits => 512;
     public virtual int HashSizeBytes => 64;
+    public virtual string Name => "SHA-512";
 
     protected unsafe void ComputeInternal(SHA512State* state, byte* data)
     {

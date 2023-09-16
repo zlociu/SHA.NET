@@ -104,6 +104,7 @@ public class Sha1: IHashAlgorithm
 
     public int HashSizeBits => 160;
     public int HashSizeBytes => 20;
+    public string Name => "SHA-1";
 
     private unsafe void ComputeInternal(SHA1State* state, byte* data)
     {
