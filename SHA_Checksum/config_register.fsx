@@ -1,6 +1,5 @@
 //add to registry to context menu for all files options to calculate SHA checksum for all SHA algorithms in F#
 
-open System
 open Microsoft.Win32
 
 let mainKey = Registry.ClassesRoot.CreateSubKey("*\\shell\\SHA")
