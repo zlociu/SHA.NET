@@ -21,10 +21,14 @@ public class Sha1: IHashAlgorithm
     }
 
     private SHA1State state;
+    private readonly byte[] buffer;
+    private int bufferLen;
 
     public Sha1()
     {
         this.state = new();
+        this.buffer = new byte[64];
+        this.bufferLen = 0;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -45,66 +49,125 @@ public class Sha1: IHashAlgorithm
         return x ^ y ^ z;
     }
 
-    public unsafe void ComputeHash(ReadOnlySpan<byte> data)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private unsafe byte[] GetHashByteArray(uint* ptr, int len)
     {
-        this.state = new();
+        var result = new byte[len];
 
-        fixed (SHA1State* statePtr = &this.state)
+        byte* bytePtr = (byte*)ptr;
+        for(int i = 0; i < len; i++) result[i] = bytePtr[i ^ 3];
+        return result;
+    }
+
+    public unsafe byte[] ComputeHash(ReadOnlySpan<byte> data)
+    {
+        SHA1State state = new();
+        SHA1State* statePtr = &state;
+        
+        if (data.Length == 0)
         {
-            if (data.Length == 0)
-            {
-                this.ComputeHashUnsafe(null, 0, statePtr);
-                return;
-            }
-
+            this.ComputeHashUnsafe(null, 0, statePtr);
+        }
+        else
+        {
             fixed (byte* ptr = &MemoryMarshal.GetReference(data))
             {
                 this.ComputeHashUnsafe(ptr, data.Length, statePtr);
             }
         }
-        
+         
+        return GetHashByteArray(statePtr->H, 20);
     }
 
-    public unsafe void ComputeHash(byte[] data)
+    public unsafe byte[] ComputeHash(byte[] data)
     {
-        this.state = new();
-
-        fixed (SHA1State* statePtr = &this.state)
+        SHA1State state = new();
+        SHA1State* statePtr = &state;
+        
+        if (data is null || data.Length == 0)
         {
-            if (data is null || data.Length == 0)
-            {
-                this.ComputeHashUnsafe(null, 0, statePtr);
-                return;
-            }
-
+            this.ComputeHashUnsafe(null, 0, statePtr);
+        }
+        else
+        {
             fixed (byte* ptr = &data[0])
             {
                 this.ComputeHashUnsafe(ptr, data.Length, statePtr);
             }
         }
+
+        return GetHashByteArray(statePtr->H, 20);
     }
 
-    public unsafe void ComputeHash(Stream data)
+    public unsafe byte[] ComputeHash(Stream data)
     {
-        this.state = new();
+        SHA1State state = new();
+        SHA1State* statePtr = &state;
 
-        fixed (SHA1State* statePtr = &this.state)
+        if (data is null || data.Length == 0)
         {
-            if (data is null || data.Length == 0)
-            {
-                this.ComputeHashUnsafe(null, 0, statePtr);
-                return;
-            }
-
+            this.ComputeHashUnsafe(null, 0, statePtr);
+        }
+        else
+        {
             this.ComputeHashStreamUnsafe(data, statePtr);
         }
+
+        return GetHashByteArray(statePtr->H, 20);
     }
 
-    public unsafe string Hash => string.Format("0x{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4]);
+    public unsafe void Clear()
+    {
+        this.state = new();
+        this.bufferLen = 0;
+    }
+
+    public unsafe string Hash => string.Format("{0:x8}{1:x8}{2:x8}{3:x8}{4:x8}", state.H[0], state.H[1], state.H[2], state.H[3], state.H[4]);
 
     public int HashSizeBits => 160;
     public int HashSizeBytes => 20;
     public string Name => "SHA-1";
+
+    public unsafe void HashData(ReadOnlySpan<byte> data)
+    {
+        if (data.IsEmpty) return;
+
+        fixed (byte* ptr = &MemoryMarshal.GetReference(data))
+        {
+            fixed (SHA1State* state = &this.state)
+            {
+                this.HashDataUnsafe(ptr, data.Length, state);
+            }
+        }
+    }
+
+    public unsafe void HashData(byte[] data, int start, int size)
+    {
+        if (data is null) return;
+
+        ArgumentOutOfRangeException.ThrowIfNegative(start);
+        ArgumentOutOfRangeException.ThrowIfNegative(size);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(data.Length, start + size);
+
+        fixed (byte* ptr = &data[start])
+        {
+            fixed (SHA1State* state = &this.state)
+            {
+                this.HashDataUnsafe(ptr, size, state);
+            }
+        }
+    }
+
+    public unsafe void HashFinal()
+    {
+        fixed (byte* ptr = &this.buffer[0])
+        {
+            fixed (SHA1State* state = &this.state)
+            {
+                this.ComputeFinalInternal(state, ptr, this.bufferLen);
+            }
+        }
+    }
 
     private unsafe void ComputeInternal(SHA1State* state, byte* data)
     {
@@ -193,22 +256,21 @@ public class Sha1: IHashAlgorithm
         state->H[4] += E;
     }
 
-    private unsafe void ComputeHashUnsafe(byte* data, long length, SHA1State* state)
+    private unsafe void ComputeFinalInternal(SHA1State* state, byte* data, long length)
     {
-        for (int i = 0; i < (length >> 6); i++)
-        {
-            ComputeInternal(state, data + (i << 6));
-        }
-
         int data_len_mod_0x3F = (int)((length + 1L) & 0x3FL);
         byte[] padding = new byte[128];
-
+        
         int k = 64;
         if (data_len_mod_0x3F > 56) k = 0;
 
-        for (int i = 0; i < data_len_mod_0x3F - 1; i++)
+        fixed (byte* paddingPtr = &padding[0])
         {
-            padding[i + k] = data[length - data_len_mod_0x3F + 1 + i];
+            Buffer.MemoryCopy(
+                data + length - data_len_mod_0x3F + 1,
+                paddingPtr + k,
+                data_len_mod_0x3F - 1,
+                data_len_mod_0x3F - 1);
         }
 
         padding[k + data_len_mod_0x3F - 1] = 0x80;
@@ -233,52 +295,61 @@ public class Sha1: IHashAlgorithm
         }
     }
 
+    private unsafe void ComputeHashUnsafe(byte* data, long length, SHA1State* state)
+    {
+        for (int i = 0; i < (length >> 6); i++)
+        {
+            this.ComputeInternal(state, data + (i << 6));
+        }
+
+        int lenFullChunks = (int)(length & ~0x3FL);
+        this.ComputeFinalInternal(state, data + lenFullChunks, length - lenFullChunks);
+    }
+
     private unsafe void ComputeHashStreamUnsafe(Stream stream, SHA1State* state)
     {
-        var length = (int) stream.Length;
-
         Span<byte> dataBuffer = stackalloc byte[64];
-        
         int cnt = 0;
 
         fixed (byte* ptr = &MemoryMarshal.GetReference(dataBuffer))
         {
             while ((cnt = stream.Read(dataBuffer)) == 0x40)
             {
-                ComputeInternal(state, ptr);
+                this.ComputeInternal(state, ptr);
             }
+
+            this.ComputeFinalInternal(state, ptr, cnt);
         }
+    }
 
-        int data_len_mod_0x3F = (int)((length + 1L) & 0x3FL);
-        byte[] padding = new byte[128];
-
-        int k = 64;
-        if (data_len_mod_0x3F > 56) k = 0;
-
-        for (int i = 0; i < data_len_mod_0x3F - 1; i++)
+    private unsafe void HashDataUnsafe(byte* data, int length, SHA1State* state)
+    {
+        fixed (byte* ptr = &this.buffer[0])
         {
-            padding[i + k] = dataBuffer[cnt - data_len_mod_0x3F + 1 + i];
-        }
+            int len = 0x40 - this.bufferLen;
+            if (length < len)
+            {
+                Buffer.MemoryCopy(data, ptr + this.bufferLen, length, length);
+                this.bufferLen += length;
+                return;
+            }
 
-        padding[k + data_len_mod_0x3F - 1] = 0x80;
+            Buffer.MemoryCopy(data, ptr + this.bufferLen, len, len);
+            ComputeInternal(state, ptr);
+            this.bufferLen = 0;
 
-        long wholeSize = (length) << 3;
-        byte* wholeSizePtr = (byte*)&wholeSize;
+            int lenFullChunks = (length - len) & ~0x3F;
+            for (int i = 0; i < (lenFullChunks >> 6); i++)
+            {
+                ComputeInternal(state, data + len + (i << 6));
+            }
 
-        padding[127] = wholeSizePtr[0];
-        padding[126] = wholeSizePtr[1];
-        padding[125] = wholeSizePtr[2];
-        padding[124] = wholeSizePtr[3];
-        padding[123] = wholeSizePtr[4];
-        padding[122] = wholeSizePtr[5];
-        padding[121] = wholeSizePtr[6];
-        padding[120] = wholeSizePtr[7];
-
-        fixed (byte* ptr = &padding[0])
-        {
-            if (data_len_mod_0x3F > 56) ComputeInternal(state, ptr);
-
-            ComputeInternal(state, ptr + 64);
+            len = length - len - lenFullChunks;
+            if (len > 0)
+            {
+                Buffer.MemoryCopy(data + length - len, ptr, len, len);
+                this.bufferLen = len;
+            }
         }
     }
 }

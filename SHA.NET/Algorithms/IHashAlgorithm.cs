@@ -1,16 +1,19 @@
+namespace SHA.Algorithms;
+
 public interface IHashAlgorithm
 {
-    void ComputeHash(ReadOnlySpan<byte> data);
+    byte[] ComputeHash(ReadOnlySpan<byte> data);
+    byte[] ComputeHash(byte[] data);
+    byte[] ComputeHash(Stream stream);
 
-    void ComputeHash(byte[] data);
+    void Clear();
 
-    void ComputeHash(Stream stream);
+    void HashData(ReadOnlySpan<byte> data);
+    void HashData(byte[] data, int start, int size);
+    void HashFinal();
 
     string Hash { get; }
-
     int HashSizeBits { get; }
-
     int HashSizeBytes { get; }
-
     string Name { get; }
 }
