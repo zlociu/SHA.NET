@@ -1,7 +1,7 @@
 # SHA.NET
 
 ## Overview 👁️
-SHA implementation in pure C# (.NET 7) Available hash algorithms:
+SHA implementation in pure C# (.NET 8) Available hash algorithms:
 - __SHA-1__
 - __SHA-224__
 - __SHA-256__

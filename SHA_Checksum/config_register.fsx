@@ -5,7 +5,7 @@ open Microsoft.Win32
 let mainKey = Registry.ClassesRoot.CreateSubKey("*\\shell\\SHA")
 mainKey.SetValue("ExtendedSubCommandsKey", "*\\shell\\SHA")
 mainKey.SetValue("MUIVerb", "SHA Checksum")
-mainKey.SetValue("Icon", __SOURCE_DIRECTORY__ + "\\icon.ico")
+mainKey.SetValue("Icon", __SOURCE_DIRECTORY__ + "\\hash_icon.ico")
 
 let subKey = mainKey.CreateSubKey("Shell")
 let subKey1 = subKey.CreateSubKey("SHA-1")
@@ -14,7 +14,7 @@ let subKey256 = subKey.CreateSubKey("SHA-256")
 let subKey384 = subKey.CreateSubKey("SHA-384")
 let subKey512 = subKey.CreateSubKey("SHA-512")
 
-let exePath = __SOURCE_DIRECTORY__ + "\\bin\\Release\\net7.0\\SHA_Checksum.exe"
+let exePath = __SOURCE_DIRECTORY__ + "\\bin\\Release\\net8.0\\SHA_Checksum.exe"
 
 subKey1.CreateSubKey("command").SetValue("", exePath + " SHA1 \"%1\"")
 subKey1.SetValue("CommandFlags", 0x40, RegistryValueKind.DWord)
