@@ -264,16 +264,14 @@ public class Sha1: IHashAlgorithm
         int k = 64;
         if (data_len_mod_0x3F > 56) k = 0;
 
-        fixed (byte* paddingPtr = &padding[0])
+        int length_mod_0x3F = data_len_mod_0x3F - 1;
+
+        for (int i = 0; i < length_mod_0x3F; i++)
         {
-            Buffer.MemoryCopy(
-                data + length - data_len_mod_0x3F + 1,
-                paddingPtr + k,
-                data_len_mod_0x3F - 1,
-                data_len_mod_0x3F - 1);
+            padding[i + k] = data[length - length_mod_0x3F + i];
         }
 
-        padding[k + data_len_mod_0x3F - 1] = 0x80;
+        padding[length_mod_0x3F + k] = 0x80;
 
         long wholeSize = (length) << 3;
         byte* wholeSizePtr = (byte*)&wholeSize;

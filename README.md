@@ -3,10 +3,10 @@
 ## Overview 👁️
 SHA implementation in pure C# (.NET 8) Available hash algorithms:
 - __SHA-1__
-- __SHA-224__
-- __SHA-256__
-- __SHA-384__
-- __SHA-512__
+- __SHA2-224__
+- __SHA2-256__
+- __SHA2-384__
+- __SHA2-512__
 
 
 ## Project description 📋

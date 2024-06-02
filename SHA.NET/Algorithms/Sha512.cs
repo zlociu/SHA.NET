@@ -316,12 +316,14 @@ public class Sha512 : IHashAlgorithm
         int k = 128;
         if (data_len_mod_0x7F > 112) k = 0;
 
-        for (int i = 0; i < data_len_mod_0x7F - 1; i++)
-        {
-            padding[i + k] = data[length - data_len_mod_0x7F + 1 + i];
-        }
+        int length_mod_0x7F = data_len_mod_0x7F - 1;
 
-        padding[k + data_len_mod_0x7F - 1] = 0x80;
+        for (int i = 0; i < length_mod_0x7F; i++)
+        {
+            padding[i + k] = data[length - length_mod_0x7F + i];
+        }
+            
+        padding[length_mod_0x7F + k] = 0x80;
 
         ulong wholeSizeSmall = (ulong)(length << 3);
         ulong wholeSize  = (ulong)((length >> 61) & 0x07);

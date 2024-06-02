@@ -309,12 +309,14 @@ public class Sha256 : IHashAlgorithm
         int k = 64;
         if (data_len_mod_0x3F > 56) k = 0;
 
-        for (int i = 0; i < data_len_mod_0x3F - 1; i++)
+        int length_mod_0x3F = data_len_mod_0x3F - 1;
+
+        for (int i = 0; i < length_mod_0x3F; i++)
         {
-            padding[i + k] = data[length - data_len_mod_0x3F + 1 + i];
+            padding[i + k] = data[length - length_mod_0x3F + i];
         }
 
-        padding[k + data_len_mod_0x3F - 1] = 0x80;
+        padding[length_mod_0x3F + k] = 0x80;
 
         long wholeSize = (length) << 3;
         byte* wholeSizePtr = (byte*)&wholeSize;
@@ -365,6 +367,7 @@ public class Sha256 : IHashAlgorithm
             }
 
             Buffer.MemoryCopy(data, ptr + this.bufferLen, len, len);
+            
             ComputeInternal(state, ptr);
             this.bufferLen = 0;
 
@@ -378,6 +381,7 @@ public class Sha256 : IHashAlgorithm
             if (len > 0)
             {
                 Buffer.MemoryCopy(data + length - len, ptr, len, len);
+
                 this.bufferLen = len;
             }
         }
